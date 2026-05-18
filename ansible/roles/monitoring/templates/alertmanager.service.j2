@@ -1,0 +1,14 @@
+# ~/project1-aws/ansible/roles/monitoring/templates/alertmanager.service.j2
+[Unit]
+Description=AlertManager
+After=network.target
+
+[Service]
+User=alertmanager
+ExecStart=/usr/local/bin/alertmanager \
+  --config.file=/etc/alertmanager/alertmanager.yml \
+  --storage.path=/var/lib/alertmanager
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

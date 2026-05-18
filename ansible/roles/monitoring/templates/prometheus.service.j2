@@ -1,0 +1,15 @@
+# ~/project1-aws/ansible/roles/monitoring/templates/prometheus.service.j2
+[Unit]
+Description=Prometheus
+After=network.target
+
+[Service]
+User=prometheus
+ExecStart=/usr/local/bin/prometheus \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/var/lib/prometheus \
+  --web.enable-lifecycle
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

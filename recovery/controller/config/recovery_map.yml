@@ -1,0 +1,56 @@
+# alertname 기반 Recovery Policy
+
+NginxDown:
+  target_group: webservers
+  service_name: nginx
+  script: scripts/recover_nginx.sh
+  retry: 3
+  cooldown: 60
+  verify:
+    command: "ANSIBLE_HOST_KEY_CHECKING=False ANSIBLE_PYTHON_INTERPRETER=auto_silent ansible webservers -i /opt/recovery/inventory.yml -m shell -a 'systemctl is-active nginx' -b | grep active"
+
+NginxExporterDown:
+  target_group: webservers
+  service_name: nginx_exporter
+  script: scripts/recover_nginx_exporter.sh
+  retry: 3
+  cooldown: 60
+  verify:
+    command: "ANSIBLE_HOST_KEY_CHECKING=False ANSIBLE_PYTHON_INTERPRETER=auto_silent ansible webservers -i /opt/recovery/inventory.yml -m shell -a 'systemctl is-active nginx_exporter' -b | grep active"
+
+HighCPU:
+  target_group: webservers
+  service_name: cpu
+  script: scripts/recover_cpu.sh
+  retry: 2
+  cooldown: 120
+
+HighMemoryUsage:
+  target_group: webservers
+  service_name: memory
+  script: scripts/recover_memory.sh
+  retry: 2
+  cooldown: 120
+
+PostgreSQLHighConnections:
+  target_group: databases
+  service_name: postgresql
+  script: scripts/recover_db.sh
+  retry: 2
+  cooldown: 180
+
+RetryFailTest:
+  target_group: webservers
+  service_name: fail_test
+  script: scripts/recover_fail_test.sh
+  retry: 3
+  cooldown: 0
+
+
+# future expansion example
+# DiskUsageHigh:
+#   target_group: web
+#   service_name: disk
+#   script: scripts/recover_disk.sh
+#   retry: 2
+#   cooldown: 180

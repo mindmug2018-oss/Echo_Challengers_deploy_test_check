@@ -1,0 +1,11 @@
+{
+  "alerts": [
+    {
+      "labels": {
+        "alertname": "NginxExporterDown",
+        "instance": "172.16.1.151:9113",
+        "severity": "critical"
+      }
+    }
+  ]
+}

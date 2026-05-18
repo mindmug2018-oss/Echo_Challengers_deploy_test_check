@@ -1,0 +1,24 @@
+# ~/project1-aws/ansible/roles/fastapi/templates/fastapi.service.j2
+[Unit]
+Description=FastAPI Application
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/opt/app
+
+# === 이 부분이 핵심입니다 ===
+# Ansible 인벤토리에 있는 'databases' 그룹의 첫 번째 서버 IP를 동적으로 가져옵니다.
+Environment="DB_HOST={{ groups['databases'][0] }}"
+Environment="DB_USER={{ db_user }}"
+Environment="DB_PASS={{ db_password }}"
+Environment="DB_NAME={{ db_name }}"
+# ===========================
+
+ExecStart=/usr/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --workers 5
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

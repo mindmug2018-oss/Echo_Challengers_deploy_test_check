@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Nginx Server Info</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #f4f7f6; margin-top: 100px; }
+        .card { background: white; padding: 30px; border-radius: 15px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; }
+        .info { font-size: 1.2em; color: #34495e; margin: 10px 0; }
+        .highlight { color: #3498db; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Nginx Connection Success! ✅</h1>
+        <p class="info">Server Name: <span class="highlight">{{ inventory_hostname }}</span></p>
+        <p class="info">Private IP: <span class="highlight">{{ ansible_host }}</span></p>
+        <p class="info">OS: <span class="highlight">Amazon Linux 2023</span></p>
+        <hr>
+        <p>이 페이지는 Nginx가 직접 서빙하는 정적 페이지입니다.</p>
+    </div>
+</body>
+</html>

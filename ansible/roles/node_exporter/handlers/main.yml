@@ -1,0 +1,7 @@
+# ~/project1-aws/ansible/roles/node_exporter/handlers/main.yml
+---
+- name: restart node_exporter
+  systemd:
+    name: node_exporter
+    state: restarted
+  become: yes

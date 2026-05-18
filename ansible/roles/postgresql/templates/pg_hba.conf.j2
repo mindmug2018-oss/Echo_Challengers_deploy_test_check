@@ -1,0 +1,8 @@
+# ~/project1-aws/ansible/roles/postgresql/templates/pg_hba.conf.j2
+
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+local   all             all                                     peer
+host    all             all             127.0.0.1/32            md5
+host    all             all             ::1/128                 md5
+# VPC 내부 통신 허용 (FastAPI 서버 접속용)
+host    all             all             {{ vpc_cidr }}          md5

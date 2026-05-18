@@ -1,0 +1,7 @@
+# ~/project1-aws/ansible/roles/nginx_exporter/handlers/main.yml
+---
+- name: restart nginx_exporter
+  systemd:
+    name: nginx_exporter
+    state: restarted
+  become: yes

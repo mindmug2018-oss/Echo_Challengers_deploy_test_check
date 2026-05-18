@@ -1,0 +1,49 @@
+# ~/project1-aws/ansible/roles/nginx_exporter/tasks/main.yml
+---
+- name: 0. nginx_exporter 설치 여부 확인
+  stat:
+    path: /usr/local/bin/nginx_exporter
+  register: ne
+
+- name: 1. nginx_exporter 전용 유저 생성
+  user:
+    name: nginx_exporter
+    shell: /sbin/nologin
+    create_home: no
+  become: yes
+
+- name: 2. nginx_exporter 바이너리 다운로드 및 압축 해제
+  unarchive:
+    src: https://github.com/nginxinc/nginx-prometheus-exporter/releases/download/v1.1.0/nginx-prometheus-exporter_1.1.0_linux_amd64.tar.gz
+    dest: /tmp/
+    remote_src: yes
+  when: not ne.stat.exists
+  become: yes
+
+- name: 3. 실행 파일 설치 (/usr/local/bin)
+  copy:
+    src: /tmp/nginx-prometheus-exporter
+    dest: /usr/local/bin/nginx_exporter
+    mode: '0755'
+    remote_src: yes
+    owner: nginx_exporter
+    group: nginx_exporter
+  when: not ne.stat.exists
+  become: yes
+  notify: restart nginx_exporter
+
+- name: 4. systemd 서비스 등록 (Template 활용)
+  template:
+    src: nginx_exporter.service.j2
+    dest: /etc/systemd/system/nginx_exporter.service
+    mode: '0644'
+  become: yes
+  notify: restart nginx_exporter
+
+- name: 5. 서비스 시작 및 활성화
+  systemd:
+    name: nginx_exporter
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  become: yes

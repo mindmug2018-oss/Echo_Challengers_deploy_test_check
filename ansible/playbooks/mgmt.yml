@@ -1,0 +1,8 @@
+# ~/project1-aws/ansible/playbooks/mgmt.yml
+---
+- name: 3. Management(관리) 서버 설정 (모니터링 중심)
+  hosts: mgmt
+  roles:
+    - node_exporter     # Mgmt 서버 자체 모니터링
+    - monitoring        # Prometheus, Grafana, Alertmanager 설치
+    

@@ -1,0 +1,13 @@
+# ~/project1-aws/terraform/.gitignore
+# (terraform 폴더 전용 루트 .gitignore와 이중으로 보호)
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+
+# terraform apply 시 자동 생성
+*.pem
+inventory.yml
+ansible.cfg
+

@@ -1,0 +1,58 @@
+# ~ /project1-aws/ansible/roles/common/tasks/main.yml
+---
+- name: "1. 관리용 유저(user1) 계정 생성"
+  user:
+    name: user1
+    shell: /bin/bash
+    # Amazon Linux 2023(RedHat 계열)이므로 wheel 그룹을 사용합니다.
+    groups: wheel
+    append: yes
+    state: present
+  become: yes
+
+- name: "2. user1 계정에 NOPASSWD sudo 권한 부여"
+  # /etc/sudoers를 직접 수정하지 않고 별도 파일을 만들어 안전하게 관리합니다.
+  copy:
+    dest: "/etc/sudoers.d/user1"
+    content: "user1 ALL=(ALL) NOPASSWD: ALL"
+    mode: "0440"
+  become: yes
+
+- name: "3. 테라폼으로 생성된 공개키 주입"
+  authorized_key:
+    user: user1
+    state: present
+    # 앤서블 실행 위치(terraform/ 폴더 내부)에 있는 공개키를 읽어옵니다.
+    # 테라폼이 생성한 파일명이 'proj-key.pem'이므로 이에 맞춰 수정합니다.
+    # 주의: .pem 파일에서 공개키만 추출해서 등록해야 하므로, 
+    # 사전에 공개키 파일(.pub)을 만들어 두거나 테라폼의 결과물을 정확히 참조해야 합니다.
+    key: "{{ lookup('file', './' + project_name + '-key.pem.pub') }}"
+  become: yes
+
+- name: "4. Amazon Linux 2023 시스템 패키지 최신화"
+  dnf:
+    name: "*"
+    state: latest
+  become: yes
+
+- name: "5. 모든 서버에 공통 vim 설정 배포"
+  copy:
+    src: vimrc
+    dest: /home/user1/.vimrc
+    owner: user1
+    group: user1
+    mode: '0644'
+  become: yes
+
+- name: "6. 서버 접속 시 환영 메시지(MOTD) 설정"
+  template:
+    src: motd.j2
+    dest: /etc/motd
+    mode: '0644'
+  become: yes
+
+- name: "7. 시스템 타임존 서울로 변경"
+  timezone:
+    name: Asia/Seoul
+  become: yes
+  notify: restart crond

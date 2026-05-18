@@ -1,0 +1,27 @@
+# ~/project1-aws/ansible/roles/monitoring/handlers/main.yml
+---
+- name: restart prometheus
+  systemd:
+    name: prometheus
+    state: restarted
+  become: yes
+
+- name: restart alertmanager
+  systemd:
+    name: alertmanager
+    state: restarted
+  become: yes
+
+# 이유: Grafana datasource 설정 변경 시 재시작 필요
+- name: restart grafana
+  systemd:
+    name: grafana-server
+    state: restarted
+  become: yes
+
+- name: restart recovery
+  systemd:
+    name: recovery
+    state: restarted
+    daemon_reload: yes
+  become: yes

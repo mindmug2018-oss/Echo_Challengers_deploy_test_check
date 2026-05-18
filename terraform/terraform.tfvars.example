@@ -1,0 +1,15 @@
+# ~/project1-aws/terraform/terraform.tfvars.example
+# 이 파일을 복사해서 terraform.tfvars로 만들고 값을 채워주세요.
+#
+# 사용 방법:
+#   cp terraform.tfvars.example terraform.tfvars
+#   vi terraform.tfvars
+#
+# Tailscale Key 발급:
+#   - Auth Key:  https://login.tailscale.com/admin/settings/keys
+#                (Reusable + Pre-approved 체크)
+#   - API Key:   https://login.tailscale.com/admin/settings/keys → "Generate API key"
+
+tailnet_name      = "YOUR_TAILSCALE_EMAIL@example.com"
+tailscale_auth_key = "tskey-auth-xxxxxxx"
+tailscale_api_key = "tskey-api-XXXXXXXXX"

@@ -1,0 +1,40 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 1h
+  receiver: 'slack-monitoring'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'slack-monitoring-and-recovery'
+      continue: true
+    - match:
+        alertname: NginxExporterDown
+      receiver: 'slack-monitoring-and-recovery'
+      continue: true
+    - match:
+        alertname: HighCPU
+      receiver: 'slack-monitoring-and-recovery'
+      continue: true
+
+receivers:
+  - name: 'slack-monitoring'
+    slack_configs:
+      - api_url: '{{ slack_webhook_monitoring }}'
+        title: '[{{ "{{" }} .Status | toUpper {{ "}}" }}] {{ "{{" }} .GroupLabels.alertname {{ "}}" }}'
+        text: '{{ "{{" }} range .Alerts {{ "}}" }}{{ "{{" }} .Annotations.summary {{ "}}" }}{{ "{{" }} end {{ "}}" }}'
+        send_resolved: true
+
+  - name: 'slack-monitoring-and-recovery'
+    slack_configs:
+      - api_url: '{{ slack_webhook_monitoring }}'
+        title: '[{{ "{{" }} .Status | toUpper {{ "}}" }}] {{ "{{" }} .GroupLabels.alertname {{ "}}" }}'
+        text: '{{ "{{" }} range .Alerts {{ "}}" }}{{ "{{" }} .Annotations.description {{ "}}" }}{{ "{{" }} end {{ "}}" }}'
+        send_resolved: true
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook'
+        send_resolved: false

@@ -1,0 +1,16 @@
+# ~/project1-aws/ansible/group_vars/all.yml
+
+project_name: "proj-aws"
+
+# ── VPC 설정 (각 role에서 참조) ─────────────────────────
+vpc_cidr: "10.0.0.0/16"
+
+# ── DB 연결 정보 ──────────────────────────────
+# 이유: fastapi role, postgresql role 양쪽에서 동일한 값을 참조하도록 한 곳에서 관리
+db_name:     "appdb"
+db_user:     "appuser"
+# db_password는 secrets.yml에서 관리 (gitignore 처리)
+
+# db_private_ip는 Terraform이 inventory.yml의 all.vars에 동적으로 주입
+# 여기서 정의하지 않음 — terraform/main.tf의 inventory 생성 부분 참고
+

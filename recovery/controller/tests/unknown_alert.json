@@ -1,0 +1,11 @@
+{
+  "alerts": [
+    {
+      "labels": {
+        "alertname": "UnknownAlert",
+        "instance": "172.16.1.151:9999",
+        "severity": "critical"
+      }
+    }
+  ]
+}

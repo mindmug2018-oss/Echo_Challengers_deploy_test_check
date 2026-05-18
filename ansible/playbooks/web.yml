@@ -1,0 +1,9 @@
+# ~/project1-aws/ansible/playbooks/web.yml
+---
+- name: 2. 웹 서버 및 애플리케이션 특화 설정
+  hosts: webservers
+  roles:
+    - fastapi           # 백엔드 앱 배포
+    - nginx             # 리버스 프록시 설정
+    - node_exporter     # 웹 서버 상태 모니터링
+    - nginx_exporter    # nginx 메트릭 수집

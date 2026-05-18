@@ -1,0 +1,14 @@
+# ~/project1-aws/ansible/roles/node_exporter/templates/node_exporter.service.j2
+[Unit]
+Description=Node Exporter
+After=network.target
+
+[Service]
+User=node_exporter
+Group=node_exporter
+Type=simple
+# 추가적인 수집기가 필요할 경우 여기에 옵션을 추가할 수 있습니다.
+ExecStart=/usr/local/bin/node_exporter
+
+[Install]
+WantedBy=multi-user.target

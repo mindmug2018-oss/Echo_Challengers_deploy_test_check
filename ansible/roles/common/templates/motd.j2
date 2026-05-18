@@ -1,0 +1,9 @@
+# ~/project1-aws/ansible/roles/common/templates/motd.j2
+============================================================
+  Welcome to {{ ansible_hostname }}!
+  Project: {{ project_name | default('Project1-AWS') }}
+  Environment: Production (Amazon Linux 2023)
+  Managed by: Ansible
+  IP Address: {{ ansible_default_ipv4.address }}
+============================================================
+Last system update: {{ ansible_date_time.date }}

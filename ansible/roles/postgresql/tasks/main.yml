@@ -1,0 +1,104 @@
+# ~/project1-aws/ansible/roles/postgresql/tasks/main.yml
+---
+- name: 1. PostgreSQL 15 설치 및 의존 패키지 (AL2023)
+  # 이유: AL2023에서 postgresql15-setup은 별도 패키지가 아님
+  # postgresql15-server에 postgresql-setup 명령이 포함되어 있음
+  # python3-pip + psycopg2-binary로 Ansible postgresql 모듈 지원
+  dnf:
+    name:
+      - postgresql15-server      # PostgreSQL 본체 + postgresql-setup 명령 포함
+      - postgresql15             # 클라이언트 도구 (psql 명령)
+      - python3-pip              # psycopg2 설치용
+      - python3-devel            # psycopg2 빌드용
+      - gcc                      # psycopg2 빌드용
+    state: present
+  become: yes
+
+- name: 1-2. psycopg2-binary 설치 (Ansible postgresql 모듈용)
+  # 이유: Ansible의 postgresql_user, postgresql_db, postgresql_query 모듈은
+  # psycopg2 라이브러리가 필요함
+  pip:
+    name: psycopg2-binary
+    executable: pip3
+    state: present
+  become: yes
+
+- name: 2. DB 초기화 여부 확인 및 실행
+  command: postgresql-setup --initdb
+  args:
+    creates: /var/lib/pgsql/data/PG_VERSION
+  become: yes
+
+- name: 3. 외부 접속 허용 (postgresql.conf)
+  lineinfile:
+    path: /var/lib/pgsql/data/postgresql.conf
+    regexp: "^#?listen_addresses"
+    line: "listen_addresses = '*'"
+  become: yes
+  notify: restart postgresql
+
+- name: 4. 인증 보안 설정 배포 (pg_hba.conf)
+  template:
+    src: pg_hba.conf.j2
+    dest: /var/lib/pgsql/data/pg_hba.conf
+    owner: postgres
+    group: postgres
+    mode: '0600'
+  become: yes
+  notify: restart postgresql
+
+- name: 5. 서비스 시작 및 활성화
+  systemd:
+    name: postgresql
+    state: started
+    enabled: yes
+  become: yes
+
+- name: 6. 기존 설정 유지 - DB 및 유저 생성
+  block:
+    - name: 애플리케이션 유저(appuser) 생성
+      postgresql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"     # 변수 참조
+        role_attr_flags: "LOGIN,CREATEDB" # 로그인 + DB 생성 권한만
+
+    - name: 애플리케이션 DB(appdb) 생성
+      postgresql_db:
+        name: "{{ db_name }}"
+        owner: "{{ db_user }}"
+
+    - name: postgres 슈퍼유저 비밀번호 설정
+      postgresql_user:
+        name: postgres
+        password: "postgres"
+  become: yes
+  become_user: postgres
+
+# 샘플 데이터 쿼리 수정 필요
+- name: 7. 애플리케이션 테이블 생성 (items + dept 샘플)
+  postgresql_query:
+    db: "{{ db_name }}"
+    login_user: "{{ db_user }}"
+    login_password: "{{ db_password }}"
+    login_host: "127.0.0.1"
+    query: |
+      -- FastAPI가 실제로 사용하는 테이블
+      -- 이유: main.py의 /items 엔드포인트가 이 테이블에 읽기/쓰기
+      CREATE TABLE IF NOT EXISTS items (
+        id         SERIAL PRIMARY KEY,
+        name       VARCHAR(100) NOT NULL,
+        server     VARCHAR(50),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      -- items 권한 부여
+      -- 이유: 6번에서 SUPERUSER 설정했어도 명시적 권한 부여가 안전
+      GRANT ALL PRIVILEGES ON TABLE items TO {{ db_user }};
+      GRANT USAGE, SELECT ON SEQUENCE items_id_seq TO {{ db_user }};
+
+      INSERT INTO items (name, server)
+      VALUES
+        ('sample-item-1', 'init'),
+        ('sample-item-2', 'init'),
+        ('sample-item-3', 'init')
+      ON CONFLICT DO NOTHING;

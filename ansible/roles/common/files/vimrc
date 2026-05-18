@@ -1,0 +1,17 @@
+" ============================================================
+" [팀 프로젝트 공통 VIM 설정]
+" 1. YAML 문법 준수: Tab을 2칸 공백으로 자동 변환 (에러 방지)
+" 2. 가독성: 줄 번호 및 문법 강조(Syntax) 활성화로 디버깅 용이
+" 3. 표준화: 모든 서버에서 동일한 편집 환경 유지 (협업 필수)
+" ============================================================
+" 파일위치: ~project1-aws/ansible/roles/common/files/vimrc
+" 팀 프로젝트 공통 vim 설정
+
+set number          " 줄 번호 표시
+set tabstop=2       " 탭 크기 2칸 고정
+set shiftwidth=2    " 자동 들여쓰기 2칸
+set expandtab       " 탭을 공백(Space)으로 변환 (YAML 에러 방지)
+set autoindent      " 이전 줄에 맞춰 들여쓰기 유지
+set hlsearch        " 검색 결과 하이라이트
+set ignorecase      " 검색 시 대소문자 무시
+set syntax=on       " 문법 색상 강조 활성화

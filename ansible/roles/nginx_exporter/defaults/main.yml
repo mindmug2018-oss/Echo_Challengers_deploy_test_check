@@ -1,0 +1,5 @@
+# ~/project1-aws/ansible/roles/nginx_exporter/defaults/main.yml
+---
+nginx_status_host: "127.0.0.1"
+nginx_status_port: "80"
+nginx_exporter_port: "9113"

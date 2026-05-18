@@ -1,0 +1,68 @@
+# =============================================================
+# ~/project1-aws/.gitignore
+# -------------------------------------------------------------
+# Project1-AWS Integrated Git Ignore File
+# =============================================================
+
+# ── 1. Terraform & AWS Infrastructure (Critical) ─────────────
+# 계정 정보, 인프라 IP, 민감한 상태 정보가 포함되므로 절대 금지
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+
+# Terraform apply 시 자동 생성되는 실행 환경 파일
+terraform/*.pem                     # SSH 개인키 (proj-aws-key.pem)
+terraform/*.key                     # 기타 키 파일
+terraform/inventory.yml             # 동적으로 변하는 서버 IP 정보
+terraform/ansible.cfg               # 로컬 실행 경로 설정
+terraform/terraform.tfvars          # 개인별 AWS 변수값
+ansible/roles/common/files/*.pem.pub    # SSH 공용키 (proj-aws-key.pem.pub)
+
+# ── 2. Secrets & Sensitive Data ──────────────────────────────
+# 실제 비밀번호, API 키, 인증 정보가 포함된 파일들
+.aws/
+.env
+*.env
+*.secret
+.vault_pass
+id_ed25519*
+**/*.pem
+**/*.pem.pub
+**/*.pub
+**/*.key
+# (Slack Webhook URL 등이 포함될 수 있음)
+ansible/group_vars/secrets.yml
+
+# ── 3. Runtime & Build Artifacts ────────────────────────────
+# 코드 실행 중 생성되는 임시 파일 및 로그
+*.log
+nohup.out
+*.retry
+.ansible/
+__pycache__/
+*.pyc
+*.pyo
+
+# 빌드 압축 파일 및 패키지
+*.rpm
+*.deb
+*.tar.gz
+
+# ── 4. Project Specific (Chaos & Recovery) ──────────────────
+# 시연 시 생성되는 벤치마크 결과 데이터 (Git 이력 비대화 방지)
+chaos/results/
+
+# ── 5. OS & Editor Defaults ──────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+ansible/roles/common/files/*.pub
+
+# Tailscale 인증 키 (절대 commit 금지)
+.tailscale_authkey
+
+# backup 용으로 만든 임시 파일
+**/*.bak

@@ -1,0 +1,70 @@
+# Recovery Controller 테스트 명령어 모음
+
+# 1. Flask 실행
+
+cd ~/project1-aws/recovery/controller
+source venv/bin/activate
+python app.py
+
+# 2. Health Check
+
+curl http://localhost:5001/health
+
+# 3. NginxDown Alert 테스트
+
+curl -X POST http://localhost:5001/webhook 
+-H "Content-Type: application/json" 
+-d @tests/nginx_down_alert.json
+
+# 4. NginxExporterDown Alert 테스트
+
+curl -X POST http://localhost:5001/webhook 
+-H "Content-Type: application/json" 
+-d @tests/exporter_down_alert.json
+
+# 5. Unknown Alert 테스트
+
+curl -X POST http://localhost:5001/webhook 
+-H "Content-Type: application/json" 
+-d @tests/unknown_alert.json
+
+# 6. Retry 실패 테스트
+
+curl -X POST http://localhost:5001/webhook 
+-H "Content-Type: application/json" 
+-d @tests/retry_fail_alert.json
+
+# 7. Recovery Log 확인
+
+tail -n 20 logs/recovery.log
+
+# 8. Critical Log 확인
+
+tail -n 20 logs/critical.log
+
+# 9. AWS inventory 기준 Ansible Ping 테스트
+
+ansible webservers 
+-i /home/user1/project1-aws/terraform/inventory.yml 
+-m ping
+
+# 10. Mock Recovery 단독 테스트
+
+./scripts/recover_service.sh webservers nginx
+
+# 11. 실제 Ansible Recovery 단독 테스트
+
+RECOVERY_MODE=ansible ./scripts/recover_service.sh webservers nginx
+
+# 12. AlertManager Webhook URL 확인
+
+grep -n "5001|webhook" /home/user1/alertmanager-0.27.0.linux-amd64/alertmanager.yml
+
+# 13. AlertManager 재시작
+
+pkill -f alertmanager
+
+nohup /usr/local/bin/alertmanager 
+--config.file=/home/user1/alertmanager-0.27.0.linux-amd64/alertmanager.yml \
+
+> /home/user1/alertmanager.log 2>&1 &

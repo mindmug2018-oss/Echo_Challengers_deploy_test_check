@@ -1,0 +1,372 @@
+# ~/project1-aws/ansible/roles/monitoring/tasks/main.yml
+---
+# ── 1. Prometheus ────────────────────────────────────────────
+- name: Prometheus 유저 및 디렉토리 준비
+  block:
+    - name: Prometheus 유저 생성
+      user: { name: prometheus, shell: /sbin/nologin, create_home: no }
+    - name: Prometheus 디렉토리 생성
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: prometheus
+        group: prometheus
+      loop: [/etc/prometheus, /var/lib/prometheus]
+  become: yes
+
+- name: Prometheus 바이너리 설치
+  unarchive:
+    src: https://github.com/prometheus/prometheus/releases/download/v2.51.0/prometheus-2.51.0.linux-amd64.tar.gz
+    dest: /tmp/
+    remote_src: yes
+  become: yes
+
+- name: Prometheus 실행 파일 이동
+  copy:
+    src: "/tmp/prometheus-2.51.0.linux-amd64/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    mode: '0755'
+    remote_src: yes
+    owner: prometheus
+    group: prometheus
+  loop: [prometheus, promtool]
+  become: yes
+
+- name: Prometheus 설정 배포 (Template 사용 권장)
+  template:
+    src: prometheus.yml.j2
+    dest: /etc/prometheus/prometheus.yml
+    owner: prometheus
+    mode: '0644'
+  become: yes
+  notify: restart prometheus
+
+- name: Alert Rules 배포
+  copy:
+    src: alert.rules.yml
+    dest: /etc/prometheus/alert.rules.yml
+    owner: prometheus
+    mode: '0644'
+  become: yes
+  notify: restart prometheus
+
+- name: Prometheus systemd 등록
+  template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+  become: yes
+  notify: restart prometheus
+
+# ── 2. AlertManager ──────────────────────────────────────────
+- name: AlertManager 설치 및 구성
+  block:
+    - name: AlertManager 유저 및 디렉토리 생성
+      user: { name: alertmanager, shell: /sbin/nologin, create_home: no }
+    
+    - name: AlertManager 디렉토리 생성
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: alertmanager
+        group: alertmanager
+      loop: [/etc/alertmanager, /var/lib/alertmanager]
+    
+    - name: AlertManager 바이너리 다운로드 및 설치
+      unarchive:
+        src: https://github.com/prometheus/alertmanager/releases/download/v0.27.0/alertmanager-0.27.0.linux-amd64.tar.gz
+        dest: /tmp/
+        remote_src: yes
+
+    - name: AlertManager 실행 파일 이동
+      copy:
+        src: "/tmp/alertmanager-0.27.0.linux-amd64/{{ item }}"
+        dest: "/usr/local/bin/{{ item }}"
+        mode: '0755'
+        remote_src: yes
+      loop: [alertmanager, amtool]
+
+    # 이유: Slack URL을 변수로 치환하기 위해 template 사용
+    - name: AlertManager 설정 배포
+      template:
+        src: alertmanager.yml.j2
+        dest: /etc/alertmanager/alertmanager.yml
+        owner: alertmanager
+        mode: '0644'
+  become: yes
+  notify: restart alertmanager
+
+- name: AlertManager systemd 등록
+  template:
+    src: alertmanager.service.j2
+    dest: /etc/systemd/system/alertmanager.service
+  become: yes
+  notify: restart alertmanager
+
+# ── 3. Grafana (AL2023 전용) ──────────────────────────────────
+
+# Grafana 설치 전 swap 추가
+# 이유: t3.micro(1GB)에서 dnf install grafana가 메모리 부족(OOM)으로 137 종료
+#       2GB swap을 추가해서 OOM 회피
+- name: Grafana 설치 전 - swap 파일 생성 (OOM 방지)
+  block:
+    - name: swap 파일 존재 여부 확인
+      stat:
+        path: /swapfile
+      register: swap_stat
+
+    - name: 2GB swap 파일 생성
+      command: dd if=/dev/zero of=/swapfile bs=1M count=2048
+      when: not swap_stat.stat.exists
+
+    - name: swap 파일 권한 설정
+      file:
+        path: /swapfile
+        mode: '0600'
+      when: not swap_stat.stat.exists
+
+    - name: swap 영역 포맷
+      command: mkswap /swapfile
+      when: not swap_stat.stat.exists
+
+    - name: swap 활성화
+      command: swapon /swapfile
+      when: not swap_stat.stat.exists
+
+    - name: swap 항상 사용하도록 fstab 등록
+      lineinfile:
+        path: /etc/fstab
+        line: "/swapfile none swap sw 0 0"
+        state: present
+  become: yes
+
+- name: Grafana 저장소 추가
+  copy:
+    dest: /etc/yum.repos.d/grafana.repo
+    content: |
+      [grafana]
+      name=grafana
+      baseurl=https://rpm.grafana.com
+      repo_gpgcheck=1
+      enabled=1
+      gpgcheck=1
+      gpgkey=https://rpm.grafana.com/gpg.key
+      sslverify=1
+      sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+  become: yes
+
+- name: Grafana 설치
+  dnf:
+    name: grafana
+    state: present
+  become: yes
+
+# 이유: Grafana 시작 전에 datasource를 미리 배포하면
+#       팀원이 UI에서 수동 설정할 필요 없이 자동으로 Prometheus 연결됨
+- name: Grafana datasource 자동 프로비저닝 디렉토리 생성
+  file:
+    path: /etc/grafana/provisioning/datasources
+    state: directory
+    owner: grafana
+    mode: '0755'
+  become: yes
+
+- name: Grafana Prometheus datasource 자동 설정
+  copy:
+    dest: /etc/grafana/provisioning/datasources/prometheus.yml
+    content: |
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://localhost:9090
+          isDefault: true
+          editable: true
+    owner: grafana
+    mode: '0640'
+  become: yes
+  notify: restart grafana
+
+- name: Grafana 서비스 시작 및 활성화
+  systemd:
+    name: grafana-server
+    state: started
+    enabled: yes
+  become: yes
+
+# ── 4. Recovery Webhook 서버 ──────────────────────────────────
+
+- name: Recovery 서버용 Python pip 설치 (AL2023)
+  # 이유: AL2023은 python3는 기본 설치되지만 pip는 별도 설치 필요
+  # pip가 없으면 다음 task의 fastapi/uvicorn/httpx/pydantic 설치 불가
+  dnf:
+    name:
+      - python3-pip
+      - python3-devel
+      - ansible-core
+    state: present
+  become: yes
+
+- name: Recovery 서버 의존 패키지 설치
+  pip:
+    name:
+      - fastapi
+      - uvicorn
+      - httpx
+      - pydantic
+      - flask
+      - pyyaml
+      - requests
+    executable: pip3
+    state: present
+  become: yes
+
+- name: Recovery 스크립트 디렉토리 생성
+  file:
+    path: /opt/recovery/scripts
+    state: directory
+    owner: ec2-user
+    mode: '0755'
+  become: yes
+
+- name: Recovery config 디렉터리 생성
+  file:
+    path: /opt/recovery/config
+    state: directory
+    owner: ec2-user
+    mode: '0755'
+  become: yes
+
+- name: Recovery logs 디렉터리 생성
+  file:
+    path: /opt/recovery/logs
+    state: directory
+    owner: ec2-user
+    mode: '0755'
+  become: yes
+
+- name: recovery_map.yml 배포
+  copy:
+    src: ../../../../recovery/controller/config/recovery_map.yml
+    dest: /opt/recovery/config/recovery_map.yml
+    owner: ec2-user
+    mode: '0644'
+  become: yes
+  notify: restart recovery
+
+- name: Recovery Controller app.py 배포
+  copy:
+    src: ../../../../recovery/controller/app.py
+    dest: /opt/recovery/app.py
+    owner: ec2-user
+    mode: '0644'
+  become: yes
+  notify: restart recovery
+
+- name: 복구 스크립트 배포
+  copy:
+    src: "../../../../recovery/controller/scripts/{{ item }}"
+    dest: "/opt/recovery/scripts/{{ item }}"
+    owner: ec2-user
+    mode: '0755'
+  loop:
+    - recover_nginx.sh
+    - recover_nginx_exporter.sh
+    - recover_cpu.sh
+    - recover_memory.sh
+    - recover_db.sh
+    - recover_fail_test.sh
+  become: yes
+
+- name: Recovery systemd 서비스 등록
+  copy:
+    dest: /etc/systemd/system/recovery.service
+    content: |
+      [Unit]
+      Description=Auto Recovery Webhook Server
+      After=network.target
+
+      [Service]
+      Type=simple
+      User=ec2-user
+      WorkingDirectory=/opt/recovery
+
+      # 이유: IP는 terraform이 주입하므로 환경변수로 관리
+      EnvironmentFile=/opt/recovery/.env
+
+      ExecStart=/usr/bin/python3 /opt/recovery/app.py
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: '0644'
+  become: yes
+  notify: restart recovery
+
+- name: Recovery .env 파일 생성 (IP 주입)
+  copy:
+    dest: /opt/recovery/.env
+    content: |
+      SLACK_WEBHOOK_URL={{ slack_webhook_recovery }}
+      SSH_KEY_PATH=/home/ec2-user/{{ project_name }}-key.pem
+      SSH_USER=ec2-user
+      WEB1_IP={{ groups['webservers'][0] }}
+      WEB2_IP={{ groups['webservers'][1] }}
+      DB_IP={{ groups['databases'][0] }}
+      PROMETHEUS_URL=http://localhost:9090
+      RECOVERY_MODE=ansible
+      ANSIBLE_INVENTORY=/opt/recovery/inventory.yml
+    owner: ec2-user
+    mode: '0600'
+  become: yes
+  notify: restart recovery
+
+- name: Recovery용 Ansible inventory 배포
+  copy:
+    src: ../../../terraform/inventory.yml
+    dest: /opt/recovery/inventory.yml
+    owner: ec2-user
+    mode: '0644'
+  become: yes
+  notify: restart recovery
+
+- name: Recovery inventory SSH key 경로를 mgmt 내부 절대경로로 수정
+  replace:
+    path: /opt/recovery/inventory.yml
+    regexp: '\./{{ project_name }}-key\.pem'
+    replace: '/home/ec2-user/{{ project_name }}-key.pem'
+  become: yes
+  notify: restart recovery
+
+- name: SSH 키를 mgmt 서버 ec2-user 홈에 복사
+  # 이유: recovery 서버가 web1/web2/db에 SSH 접속하려면 키 파일이 필요
+  # playbook_dir은 ansible/ 디렉토리이므로 terraform/ 디렉토리로 거슬러 올라감
+  copy:
+    src: "{{ playbook_dir }}/../../terraform/{{ project_name }}-key.pem"
+    dest: /home/ec2-user/{{ project_name }}-key.pem
+    owner: ec2-user
+    mode: '0600'
+  become: yes
+
+- name: ensure systemd directory exists for recovery override
+  file:
+    path: /etc/systemd/system/recovery.service.d
+    state: directory
+  become: yes
+
+- name: recovery systemd override
+  copy:
+    dest: /etc/systemd/system/recovery.service.d/override.conf
+    content: |
+      [Service]
+      EnvironmentFile=/opt/recovery/.env
+  become: yes
+  notify: restart recovery
+
+- name: Recovery 서비스 시작
+  systemd:
+    name: recovery
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  become: yes

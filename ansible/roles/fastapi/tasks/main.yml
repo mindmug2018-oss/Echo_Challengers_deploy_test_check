@@ -1,0 +1,59 @@
+# ~/project1-aws/ansible/roles/fastapi/tasks/main.yml
+---
+# AL2023은 기본 python3가 3.9 버전이므로 모듈 활성화 과정이 생략
+- name: 1. Python 3 및 필수 OS 패키지 설치
+  dnf:
+    name:
+      - python3
+      - python3-pip
+      - python3-devel     # psycopg2 등 빌드에 필요할 수 있음
+      - gcc               # 빌드 도구
+      - postgresql15      # DB 클라이언트 통신용 라이브러리
+    state: present
+  become: yes
+
+- name: 2. FastAPI 및 필수 파이썬 라이브러리 설치
+  pip:
+    name:
+      - fastapi
+      - uvicorn
+      - sqlalchemy
+      - psycopg2-binary
+      - prometheus-fastapi-instrumentator
+    executable: pip3      # AL2023에서는 pip3 사용
+    state: present
+  become: yes
+
+- name: 3. 애플리케이션 디렉토리 생성
+  file:
+    path: /opt/app
+    state: directory
+    owner: ec2-user       # AWS 기본 유저로 변경
+    mode: '0755'
+  become: yes
+
+- name: 4. FastAPI 앱 코드 복사
+  copy:
+    src: app/main.py
+    dest: /opt/app/main.py
+    owner: ec2-user
+    mode: '0644'
+  become: yes
+  notify: restart fastapi
+
+# 기존 copy 내에 있던 긴 내용을 template으로 분리하여 가독성을 높였습니다.
+- name: 5. FastAPI systemd 서비스 등록 (Template 활용)
+  template:
+    src: fastapi.service.j2
+    dest: /etc/systemd/system/fastapi.service
+    mode: '0644'
+  become: yes
+  notify: restart fastapi
+
+- name: 6. FastAPI 서비스 시작 및 활성화
+  systemd:
+    name: fastapi
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  become: yes

@@ -1,0 +1,8 @@
+# ~/project1-aws/ansible/roles/postgresql/handlers/main.yml
+---
+- name: restart postgresql
+  # 이유: tasks/main.yml에서 'notify: restart_postgresql'로 호출하므로 이름 일치 필요
+  systemd:
+    name: postgresql
+    state: restarted
+  become: yes

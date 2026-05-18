@@ -1,0 +1,52 @@
+groups:
+  - name: aws_project_alerts
+    rules:
+      - alert: NginxDown
+        expr: nginx_up == 0
+        for: 10s
+        labels:
+          alertname: NginxDown
+          severity: critical
+        annotations:
+          summary: "🚨 Nginx 웹 서버 다운 감지"
+          description: "서버 [ {{ $labels.instance }} ]의 Nginx 서비스가 10초 이상 응답이 없습니다. 자동 복구를 시작합니다."
+
+      - alert: NginxExporterDown
+        expr: up{job="nginx-exporters"} == 0
+        for: 10s
+        labels:
+          alertname: NginxExporterDown
+          severity: warning
+        annotations:
+          summary: "⚠️ Nginx Exporter 감시 중단"
+          description: "서버 [ {{ $labels.instance }} ]의 Nginx 상태 메트릭 수집이 중단되었습니다."
+
+      - alert: HighCPU
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100) > 80
+        for: 10s
+        labels:
+          alertname: HighCPU
+          severity: critical
+        annotations:
+          summary: "🔥 CPU 사용률 위험 수준 돌파"
+          description: "서버 [ {{ $labels.instance }} ]의 CPU 사용률이 80%를 초과했습니다. (현재값: {{ $value | printf \"%.1f\" }}%) 자동 진압을 시작합니다."
+
+      - alert: HighMemoryUsage
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 85
+        for: 10s
+        labels:
+          alertname: HighMemoryUsage
+          severity: warning
+        annotations:
+          summary: "💾 메모리 여유 공간 부족"
+          description: "서버 [ {{ $labels.instance }} ]의 RAM 사용률이 85%를 초과했습니다. (현재값: {{ $value | printf \"%.1f\" }}%)"
+
+      - alert: PostgreSQLHighConnections
+        expr: pg_stat_database_numbackends > 80
+        for: 10s
+        labels:
+          alertname: PostgreSQLHighConnections
+          severity: warning
+        annotations:
+          summary: "🗄️ DB 커넥션 위험 수위 도달"
+          description: "서버 [ {{ $labels.instance }} ]의 PostgreSQL 연결 수가 80개를 초과했습니다. (현재 연결 수: {{ $value }})"

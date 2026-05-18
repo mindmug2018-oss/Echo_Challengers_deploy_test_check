@@ -1,0 +1,37 @@
+# ~/project1-aws/ansible/site.yml
+---
+- name: 0. 모든 서버 기초 공사 (공통)
+  hosts: all
+  roles:
+    - common          # 모든 서버에 공통 패키지, 유저, 보안 설정 등 적용
+
+# 1. 웹 서버 먼저
+# 이유: mgmt/DB와 의존성 없음, 가장 먼저 띄워도 무방
+- import_playbook: playbooks/web.yml
+
+# 2. mgmt 서버
+# 이유: NAT GW 사용 시 DB(Private)는 mgmt를 jump host로 사용
+#      mgmt SSH가 준비된 후에 db.yml이 실행돼야 함
+- import_playbook: playbooks/mgmt.yml
+
+# 3. DB 서버 (반드시 mgmt 다음)
+# 이유: ProxyCommand로 mgmt를 경유해서 SSH 접속하기 때문
+- import_playbook: playbooks/db.yml
+
+# ※ monitoring은 mgmt.yml 안에 포함 → 여기서 별도 선언 안 함
+
+
+- name: 배포 완료 안내
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: 접속 정보 출력
+      debug:
+        msg:
+          - "=========================================================="
+          - "배포가 완료되었습니다!"
+          - "ALB:        http://[ALB-DNS]/health"
+          - "Grafana:    http://[MGMT-IP]:3000  (admin/admin)"
+          - "Prometheus: http://[MGMT-IP]:9090"
+          - "IP 확인:    cd terraform && terraform output"
+          - "=========================================================="
