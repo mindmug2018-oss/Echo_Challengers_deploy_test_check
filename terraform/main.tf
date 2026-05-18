@@ -457,8 +457,17 @@ resource "aws_instance" "mgmt" {
     hostnamectl set-hostname "${local.host_name}"
     echo "127.0.0.1 ${local.host_name}" >> /etc/hosts
 
-    # 2. 인터넷 대기 (NAT 준비 대기)
+    # 2. 인터넷 및 DNS 대기
+    echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+    echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+    
     until ping -c 1 8.8.8.8 &> /dev/null; do
+        sleep 5
+    done
+
+    # DNS 해석 가능할 때까지 추가 대기
+    until curl -s --max-time 5 https://github.com > /dev/null 2>&1; do
+        echo "Waiting for DNS resolution..."
         sleep 5
     done
 
