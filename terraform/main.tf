@@ -631,7 +631,7 @@ resource "local_file" "ansible_inventory" {
               ansible_user                 = "ec2-user"
               ansible_ssh_private_key_file = "./${var.project_name}-key.pem"
               private_ip                   = "${aws_instance.db.private_ip}"
-              ansible_ssh_common_args      = "-o ProxyCommand='ssh -i ./${var.project_name}-key.pem -o StrictHostKeyChecking=no -W %h:%p ec2-user@${aws_instance.mgmt.public_ip}'"
+              ansible_ssh_common_args      = "-o ProxyCommand=\"ssh -i ./${var.project_name}-key.pem -o StrictHostKeyChecking=no -o Port=22 -W %h:%p ec2-user@${aws_instance.mgmt.public_ip}\""
             }
           }
         }
