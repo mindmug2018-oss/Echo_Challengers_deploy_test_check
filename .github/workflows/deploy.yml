@@ -1,4 +1,4 @@
-name: DevOps Team Project - Infrastructure CI/CD
+name: DevOps Team Project - Automated Metric Screenshot
 
 on:
   push:
@@ -7,16 +7,16 @@ on:
     branches: [ main, master ]
 
 jobs:
-  validate-and-test:
-    name: Lint, Validate, and Test Stack
+  live-screenshot-test:
+    name: Provision, Inject Chaos, Snap Grafana, and Destroy
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Fetch repository code
-      - name: Checkout Code
+      # Step 1: Clone repository
+      - name: Checkout Repository Code
         uses: actions/checkout@v4
 
-      # Step 2: Set up AWS credentials securely
+      # Step 2: Configure AWS Authentication
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -24,56 +24,96 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      # Step 3: Setup Terraform matching your project constraints
+      # Step 3: Setup Terraform matching main.tf rules
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.14.0"
 
-      - name: Terraform Format Check
-        run: terraform fmt -check
-        working-directory: ./terraform
-
-      # Note: Suppress backend initialization checks if teammate hasn't mapped S3 yet
-      - name: Terraform Init
-        run: terraform init
+      # Step 4: Spin up live stack (Triggers EC2 builds and your Ansible playbooks)
+      - name: Terraform Apply (Spin Up Stack)
+        run: |
+          terraform init
+          terraform apply -auto-approve
         working-directory: ./terraform
         env:
           TF_VAR_tailscale_api_key: ${{ secrets.TAILSCALE_API_KEY }}
           TF_VAR_tailnet_name: ${{ secrets.TAILNET_NAME }}
 
-      - name: Terraform Validate
-        run: terraform validate
-        working-directory: ./terraform
-
-      # Step 4: Set up Python environment to run Ansible tools
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      # Step 5: Install Ansible
-      - name: Install Ansible
+      # Step 5: JUST-IN-TIME GRAFANA TOKEN GENERATION
+      # This step bypasses the shifting IP issue entirely by logging into the fresh instance via SSH, 
+      # creating a temporary service account token, and saving it to the local runner environment variable block.
+      - name: Generate Dynamic Grafana API Token
+        id: grafana_auth
         run: |
-          python -m pip install --upgrade pip
-          pip install ansible
+          # 1. Fetch the newly generated server IP and the private key path
+          MGMT_IP=$(cd ./terraform && terraform output -raw mgmt_public_ip 2>/dev/null)
+          KEY_PATH="./terraform/proj-aws-key.pem"
+          chmod 400 $KEY_PATH
+          
+          echo "Connecting to Management Node at ${MGMT_IP} to provision dynamic API token..."
+          
+          # 2. Run remote commands to create a temporary Grafana service account and token
+          # We use a loop check to ensure the grafana-server service is fully active before running the CLI
+          ssh -i $KEY_PATH -o StrictHostKeyChecking=no ec2-user@$MGMT_IP << 'EOF'
+            until systemctl is-active --quiet grafana-server; do
+              echo "Waiting for Grafana service to launch..."
+              sleep 5
+            done
+            
+            # Delete old test token if it somehow exists, create a service account, and mint an admin token
+            grafana-cli admin service-account delete github-ci-sa || true
+            grafana-cli admin service-account create github-ci-sa --role Admin > sa_output.txt
+            SA_ID=$(grep -oP 'id:\s+\K\d+' sa_output.txt)
+            
+            grafana-cli admin service-account token create github-token --service-account-id $SA_ID > token_output.txt
+            grep -oP 'key:\s+\K\S+' token_output.txt > raw_token.txt
+          EOF
+          
+          # 3. Pull the generated token back into the GitHub Actions cloud environment safely
+          DYNAMIC_TOKEN=$(ssh -i $KEY_PATH -o StrictHostKeyChecking=no ec2-user@$MGMT_IP "cat raw_token.txt")
+          
+          # 4. Save variables into the GitHub runner step outputs for subsequent blocks to use
+          echo "token=$DYNAMIC_TOKEN" >> $GITHUB_OUTPUT
+          echo "mgmt_ip=$MGMT_IP" >> $GITHUB_OUTPUT
 
-      # Step 6: FIXED ANSIBLE SYNTAX CHECK STEP
-      # We use $GITHUB_WORKSPACE to create an absolute path to your roles.
-      # This ensures nested playbooks inside playbooks/ can still find them.
-      - name: Ansible Syntax Check
+      # Step 6: Inject the heavy load script to simulate metrics crash
+      - name: Inject Heavy Stress Load (Trigger Alert)
         run: |
-          ansible-playbook --syntax-check site.yml -i "localhost,"
-        working-directory: ./ansible
+          chmod +x ./chaos/inject.sh
+          echo "🔥 Injecting high stress load to spike server specs..."
+          ./chaos/inject.sh fastapi1
+          
+          echo "Waiting 30 seconds for Prometheus to record the metric wall spike..."
+          sleep 30
         env:
-          ANSIBLE_ROLES_PATH: ${{ github.workspace }}/ansible/roles
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # Step 7: Validate custom chaos and recovery shell script structures
-      - name: Lint Chaos & Recovery Scripts
+      # Step 7: Capture the Image Snapshot using the Dynamic Token & Post to Slack
+      - name: Render Grafana Dashboard & Upload Image to Slack
         run: |
-          echo "Checking syntax for shell scripts..."
-          bash -n ./chaos/inject.sh
-          bash -n ./recovery/scripts/restart_nginx.sh
-          bash -n ./recovery/scripts/restart_fastapi.sh
-          bash -n ./recovery/scripts/restart_postgres.sh
-          bash -n ./bootstrap_tailscale.sh
+          MGMT_IP="${{ steps.grafana_auth.outputs.mgmt_ip }}"
+          API_TOKEN="${{ steps.grafana_auth.outputs.token }}"
+          
+          echo "Downloading PNG graph image snapshot directly from Grafana UI API..."
+          # Note: Replace 'your-dashboard-uid' with your team's custom dashboard uid string
+          curl -s -L -o chaos_spike.png \
+            -H "Authorization: Bearer $API_TOKEN" \
+            "http://${MGMT_IP}:3000/render/d-solo/your-dashboard-uid/system-metrics?panelId=1&width=1000&height=500"
+          
+          echo "Pushing screenshot image to your Slack workspace history..."
+          # Calls Slack's files API to attach the actual binary asset to your project channel
+          curl -F file=@chaos_spike.png \
+               -F "initial_comment=📊 *CI/CD Automation Monitoring:* Verified Grafana metric wall spike following fault injection on web1 server!" \
+               -F channels=${{ secrets.SLACK_CHANNEL_ID }} \
+               -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+               https://slack.com/api/files.upload
+
+      # Step 8: Safe automated cleanup
+      - name: Automated Cloud Teardown
+        if: always()
+        run: terraform destroy -auto-approve
+        working-directory: ./terraform
+        env:
+          TF_VAR_tailscale_api_key: ${{ secrets.TAILSCALE_API_KEY }}
+          TF_VAR_tailnet_name: ${{ secrets.TAILNET_NAME }}

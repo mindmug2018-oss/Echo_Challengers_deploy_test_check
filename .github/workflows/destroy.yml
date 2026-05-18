@@ -1,0 +1,39 @@
+name: Manual Infrastructure Teardown
+
+on:
+  workflow_dispatch: # This enables the manual click button in GitHub UI
+
+jobs:
+  cleanup-aws:
+    name: Destroy AWS Environment
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.0"
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./terraform
+        env:
+          TF_VAR_tailscale_api_key: ${{ secrets.TAILSCALE_API_KEY }}
+          TF_VAR_tailnet_name: ${{ secrets.TAILNET_NAME }}
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
+        working-directory: ./terraform
+        env:
+          TF_VAR_tailscale_api_key: ${{ secrets.TAILSCALE_API_KEY }}
+          TF_VAR_tailnet_name: ${{ secrets.TAILNET_NAME }}

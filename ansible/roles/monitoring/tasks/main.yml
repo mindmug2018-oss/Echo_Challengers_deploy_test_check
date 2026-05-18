@@ -160,6 +160,20 @@
     state: present
   become: yes
 
+- name: Install Grafana Image Renderer plugin
+  ansible.builtin.command:
+    cmd: grafana-cli plugins install grafana-image-renderer
+  register: plugin_install
+  changed_when: "'Installed' in plugin_install.stdout"
+  notify: Restart Grafana
+
+- name: Ensure font packages are installed for rendering graphs cleanly
+  ansible.builtin.package:
+    name:
+      - urw-base35-fonts
+      - almalinux-backgrounds # Or google-noto-sans-fonts depending on your exact OS
+    state: present
+    
 # 이유: Grafana 시작 전에 datasource를 미리 배포하면
 #       팀원이 UI에서 수동 설정할 필요 없이 자동으로 Prometheus 연결됨
 - name: Grafana datasource 자동 프로비저닝 디렉토리 생성
