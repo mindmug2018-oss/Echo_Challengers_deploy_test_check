@@ -41,6 +41,7 @@ jobs:
           TF_VAR_tailnet_name: ${{ secrets.TAILNET_NAME }}
           TF_VAR_tailscale_auth_key: ${{ secrets.TAILSCALE_API_KEY }}
           DB_PASSWORD_SECRET: ${{ secrets.DB_PASSWORD }}
+          ANSIBLE_STDOUT_CALLBACK: default
 
       # Step 5: JUST-IN-TIME GRAFANA TOKEN GENERATION
       # This step bypasses the shifting IP issue entirely by logging into the fresh instance via SSH, 
