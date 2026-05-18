@@ -83,10 +83,3 @@ variable "slack_webhook_monitoring" {
   sensitive   = true
   default     = ""
 }
-
-variable "slack_webhook_recovery" {
-  description = "Slack webhook URL for recovery notifications"
-  type        = string
-  sensitive   = true
-  default     = ""
-}

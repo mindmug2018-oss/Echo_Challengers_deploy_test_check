@@ -47,7 +47,6 @@ jobs:
           TF_VAR_tailnet_name: ${{ secrets.TAILNET_NAME }}
           TF_VAR_tailscale_auth_key: ${{ secrets.TAILSCALE_API_KEY }}
           TF_VAR_slack_webhook_monitoring: ${{ secrets.SLACK_WEBHOOK_URL }}
-          TF_VAR_slack_webhook_recovery: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_MONITORING: ${{ secrets.SLACK_WEBHOOK_URL }} 
           DB_PASSWORD_SECRET: ${{ secrets.DB_PASSWORD }}
           ANSIBLE_STDOUT_CALLBACK: default
@@ -147,4 +146,3 @@ jobs:
           DB_PASSWORD_SECRET: ${{ secrets.DB_PASSWORD }}
           SLACK_WEBHOOK_MONITORING: ${{ secrets.SLACK_WEBHOOK_URL }} 
           TF_VAR_slack_webhook_monitoring: ${{ secrets.SLACK_WEBHOOK_URL }}
-          TF_VAR_slack_webhook_recovery: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -717,9 +717,12 @@ resource "terraform_data" "ansible_run" {
         -i inventory.yml \
         -e @../ansible/group_vars/all.yml \
         -e slack_webhook_monitoring=${var.slack_webhook_monitoring} \
-        -e slack_webhook_recovery=${var.slack_webhook_recovery} \
+        -e slack_webhook_recovery=${var.slack_webhook_monitoring} \
         $([ -f ../ansible/group_vars/secrets.yml ] && echo "-e @../ansible/group_vars/secrets.yml" || echo "-e db_password=$DB_PASSWORD_SECRET") \
         ../ansible/site.yml
     EOT
+    environment = {
+      SLACK_WEBHOOK_MONITORING = var.slack_webhook_monitoring
+    }
   }
 }
