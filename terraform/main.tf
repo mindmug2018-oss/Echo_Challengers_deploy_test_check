@@ -460,7 +460,7 @@ resource "aws_instance" "mgmt" {
     # 2. 인터넷 및 DNS 대기
     echo "nameserver 8.8.8.8" >> /etc/resolv.conf
     echo "nameserver 1.1.1.1" >> /etc/resolv.conf
-    
+
     until ping -c 1 8.8.8.8 &> /dev/null; do
         sleep 5
     done
@@ -486,7 +486,8 @@ resource "aws_instance" "mgmt" {
     # --accept-routes=true를 통해 proj-mgmt(VMware)가 광고하는 172.16.1.0/24를 받아옵니다.
     tailscale up --authkey=${tailscale_tailnet_key.ec2_join_key.key} \
                  --advertise-routes=${var.vpc_cidr} \
-                 --accept-routes=true
+                 --accept-routes=true \
+                 --accept-dns=false 
   EOF
   tags      = { Name = "${var.project_name}-mgmt", Role = "management" }
 }
