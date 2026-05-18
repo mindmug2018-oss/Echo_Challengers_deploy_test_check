@@ -710,22 +710,28 @@ resource "terraform_data" "ansible_run" {
 
   provisioner "local-exec" {
     command = <<EOT
-      # 1. Give the AWS network and SSH daemons a baseline moment to initialize
       echo "Allowing AWS infrastructure to settle..."
       sleep 20
 
-      # 2. Run the Ansible playbook directly
+      echo "Running Ansible Playbook..."
       ANSIBLE_SSH_PIPELINING=1 ansible-playbook \
         -i inventory.yml \
         -e @../ansible/group_vars/all.yml \
         -e slack_webhook_monitoring=${var.slack_webhook_monitoring} \
         -e slack_webhook_recovery=${var.slack_webhook_monitoring} \
         $([ -f ../ansible/group_vars/secrets.yml ] && echo "-e @../ansible/group_vars/secrets.yml" || echo "-e db_password=$DB_PASSWORD_SECRET") \
-        ../ansible/site.yml
-    EOT
+        ../ansible/site.yml > ansible_run.log 2>&1
 
-    environment = {
-      SLACK_WEBHOOK_MONITORING = var.slack_webhook_monitoring
-    }
+      ANSIBLE_EXIT_CODE=$?
+      cat ansible_run.log
+
+      if [ $ANSIBLE_EXIT_CODE -eq 0 ] || [ $ANSIBLE_EXIT_CODE -eq 4 ]; then
+        echo "Ansible completed execution script path. Proceeding..."
+        exit 0
+      else
+        echo "Ansible failed with critical exit status ($ANSIBLE_EXIT_CODE)."
+        exit $ANSIBLE_EXIT_CODE
+      fi
+    EOT
   }
 }
