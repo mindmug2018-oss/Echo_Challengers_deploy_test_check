@@ -25,12 +25,19 @@
 
 
 - name: Prometheus 바이너리 설치
-  unarchive:
-    src: https://github.com/prometheus/prometheus/releases/download/v2.51.0/prometheus-2.51.0.linux-amd64.tar.gz
-    dest: /tmp/
-    remote_src: yes
+  block:
+    - name: Check if Prometheus already installed
+      stat:
+        path: /usr/local/bin/prometheus
+      register: prometheus_bin
+
+    - name: Prometheus 바이너리 다운로드
+      unarchive:
+        src: https://github.com/prometheus/prometheus/releases/download/v2.51.0/prometheus-2.51.0.linux-amd64.tar.gz
+        dest: /tmp/
+        remote_src: yes
+      when: not prometheus_bin.stat.exists
   become: yes
-  when: not prometheus_bin.stat.exists
 
 - name: Prometheus 실행 파일 이동
   copy:
@@ -42,6 +49,7 @@
     group: prometheus
   loop: [prometheus, promtool]
   become: yes
+  when: not prometheus_bin.stat.exists
 
 - name: Prometheus 설정 배포 (Template 사용 권장)
   template:
@@ -81,13 +89,17 @@
         owner: alertmanager
         group: alertmanager
       loop: [/etc/alertmanager, /var/lib/alertmanager]
-    
+
+    - name: Check if Alertmanager already installed
+      stat:
+        path: /usr/local/bin/alertmanager
+      register: alertmanager_bin
+
     - name: AlertManager 바이너리 다운로드 및 설치
       unarchive:
         src: https://github.com/prometheus/alertmanager/releases/download/v0.27.0/alertmanager-0.27.0.linux-amd64.tar.gz
         dest: /tmp/
         remote_src: yes
-      become: yes
       when: not alertmanager_bin.stat.exists
 
     - name: AlertManager 실행 파일 이동
@@ -98,7 +110,6 @@
         remote_src: yes
       loop: [alertmanager, amtool]
 
-    # 이유: Slack URL을 변수로 치환하기 위해 template 사용
     - name: AlertManager 설정 배포
       template:
         src: alertmanager.yml.j2
