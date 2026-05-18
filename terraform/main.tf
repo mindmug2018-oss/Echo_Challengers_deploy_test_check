@@ -448,6 +448,11 @@ resource "aws_instance" "mgmt" {
   # 다른 EC2의 패킷을 받아 Tailscale로 넘겨야 하므로 필수!
   source_dest_check = false
 
+  root_block_device {
+    volume_size = 20    # ← increase from default 8GB to 20GB
+    volume_type = "gp3"
+  }
+  
   # Tailscale 자동 설치 및 설정 (Subnet Router)
   user_data = <<-EOF
     #!/bin/bash
@@ -631,7 +636,7 @@ resource "local_file" "ansible_inventory" {
               ansible_user                 = "ec2-user"
               ansible_ssh_private_key_file = "./${var.project_name}-key.pem"
               private_ip                   = "${aws_instance.db.private_ip}"
-              ansible_ssh_common_args      = "-o ProxyCommand=\"ssh -i ./${var.project_name}-key.pem -o StrictHostKeyChecking=no -o Port=22 -W %h:%p ec2-user@${aws_instance.mgmt.public_ip}\""
+              ansible_ssh_common_args = "-o ProxyCommand='ssh -i ./${var.project_name}-key.pem -o StrictHostKeyChecking=no -W %%h:%%p ec2-user@${aws_instance.mgmt.public_ip}'"
             }
           }
         }

@@ -104,28 +104,35 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      - name: Render Grafana Dashboard & Upload Image to Slack
+      - name: Capture Grafana Snapshot & Post to Slack
         run: |
           MGMT_IP="${{ steps.grafana_auth.outputs.mgmt_ip }}"
           API_TOKEN="${{ steps.grafana_auth.outputs.token }}"
 
-          # Dynamically fetch dashboard UID by name
+          # Get dashboard UID dynamically
           DASHBOARD_RESPONSE=$(curl -s \
             -H "Authorization: Bearer $API_TOKEN" \
             "http://${MGMT_IP}:3000/api/search?type=dash-db")
           DASHBOARD_UID=$(echo $DASHBOARD_RESPONSE | grep -oP '"uid":"\K[^"]+' | head -1)
 
-          echo "Found dashboard UID: $DASHBOARD_UID"
-
-          curl -s -L -o chaos_spike.png \
+          # Create a snapshot of the dashboard
+          SNAPSHOT_RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer $API_TOKEN" \
-            "http://${MGMT_IP}:3000/render/d-solo/${DASHBOARD_UID}/system-metrics?panelId=1&width=1000&height=500"
+            -H "Content-Type: application/json" \
+            -d "{\"dashboard\": $(curl -s -H \"Authorization: Bearer $API_TOKEN\" http://${MGMT_IP}:3000/api/dashboards/uid/${DASHBOARD_UID} | grep -oP '\"dashboard\":\K.*(?=,\"meta\")')}" \
+            "http://${MGMT_IP}:3000/api/snapshots")
 
-          curl -F file=@chaos_spike.png \
-              -F "initial_comment=📊 *CI/CD Automation Monitoring:* Verified Grafana metric wall spike following fault injection on web1 server!" \
-              -F channels=${{ secrets.SLACK_CHANNEL_ID }} \
-              -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
-              https://slack.com/api/files.upload
+          SNAPSHOT_URL=$(echo $SNAPSHOT_RESPONSE | grep -oP '"url":"\K[^"]+')
+
+          # Post snapshot link to Slack
+          curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"channel\": \"${{ secrets.SLACK_CHANNEL_ID }}\",
+              \"text\": \"📊 *CI/CD Automation Monitoring:* Chaos spike captured!\nGrafana Snapshot: ${SNAPSHOT_URL}\"
+            }" \
+            https://slack.com/api/chat.postMessage
 
       # Step 8: Safe automated cleanup
       - name: Automated Cloud Teardown
