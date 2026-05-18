@@ -654,9 +654,23 @@ resource "local_file" "ansible_config" {
 }
 
 resource "terraform_data" "wait_for_instance" {
-  depends_on       = [aws_instance.mgmt, aws_instance.web1, aws_instance.web2, aws_instance.db, local_file.ansible_inventory, local_file.ansible_config]
-  triggers_replace = [aws_instance.mgmt.id, aws_instance.web1.id, aws_instance.web2.id, aws_instance.db.id]
-  provisioner "local-exec" { command = "sleep 60" }
+  depends_on = [
+    aws_instance.mgmt, 
+    aws_instance.web1, 
+    aws_instance.web2, 
+    aws_instance.db, 
+    aws_instance.nat_ec2,      # ← add this
+    local_file.ansible_inventory, 
+    local_file.ansible_config
+  ]
+  triggers_replace = [
+    aws_instance.mgmt.id, 
+    aws_instance.web1.id, 
+    aws_instance.web2.id, 
+    aws_instance.db.id,
+    aws_instance.nat_ec2.id    # ← add this
+  ]
+  provisioner "local-exec" { command = "sleep 90" }  # ← increase from 60 to 90
 }
 
 resource "terraform_data" "ansible_run" {
