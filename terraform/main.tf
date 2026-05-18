@@ -599,8 +599,6 @@ resource "local_file" "ansible_inventory" {
   content = yamlencode({
     all = {
       vars = {
-        # group_vars/all.yml의 내용을 inventory에 직접 포함
-        # 이유: Ansible이 terraform/ 디렉토리에서 실행되어 ansible/group_vars/를 못 찾음
         project_name = var.project_name
         vpc_cidr     = var.vpc_cidr
         db_name      = "appdb"
@@ -630,14 +628,21 @@ resource "local_file" "ansible_inventory" {
             }
           }
         }
+        # Fixed & Dual-grouped to support 'databases' and standard 'db' checks
         databases = {
           hosts = {
             "${aws_instance.db.private_ip}" = {
               ansible_user                 = "ec2-user"
               ansible_ssh_private_key_file = "./${var.project_name}-key.pem"
               private_ip                   = "${aws_instance.db.private_ip}"
-              ansible_ssh_common_args = "-o ProxyCommand='ssh -i ./${var.project_name}-key.pem -o StrictHostKeyChecking=no -W %%h:%%p ec2-user@${aws_instance.mgmt.public_ip}'"
+              # FIX: Use single percent signs here so the proxy command passes correctly to SSH
+              ansible_ssh_common_args      = "-o ProxyCommand=\"ssh -i ./${var.project_name}-key.pem -o StrictHostKeyChecking=no -W %h:%p ec2-user@${aws_instance.mgmt.public_ip}\""
             }
+          }
+        }
+        db = {
+          hosts = {
+            "${aws_instance.db.private_ip}" = {}
           }
         }
       }

@@ -10,15 +10,15 @@
 - name: Wait for internet connectivity via NAT instance
   ansible.builtin.get_url:
     url: https://github.com
-    dest: /tmp/internet_check
+    dest: /tmp/nat_check.txt
     timeout: 5
-  register: concessions
-  until: concessions is success
-  retries: 15
-  delay: 10
-  # Only run this on the private DB host that actually depends on the NAT routing
-  when: inventory_hostname in groups['db']
-
+  register: nat_result
+  until: nat_result is success
+  retries: 20
+  delay: 15
+  # FIX: Aligns with your dynamic YAML 'databases' group definition
+  when: "groups['databases'] is defined and inventory_hostname in groups['databases']"
+  
 - name: "1. 관리용 유저(user1) 계정 생성"
   user:
     name: user1
