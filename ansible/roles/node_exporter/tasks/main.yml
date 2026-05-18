@@ -6,6 +6,15 @@
     path: /usr/local/bin/node_exporter
   register: ne
 
+- name: 0.5. Wait for DNS to be available
+  command: curl -s --max-time 5 https://github.com
+  register: dns_check
+  until: dns_check.rc == 0
+  retries: 20
+  delay: 15
+  become: yes
+  when: not ne.stat.exists
+
 - name: 1. Node Exporter 전용 유저 생성
   user:
     name: node_exporter

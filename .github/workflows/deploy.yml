@@ -34,7 +34,7 @@ jobs:
       - name: Connect GitHub Runner to Tailscale Network
         uses: tailscale/github-action@v2
         with:
-          authkey: ${{ secrets.TAILSCALE_API_KEY }}
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
 
       # Step 4: Spin up live stack (Triggers EC2 builds and your Ansible playbooks)
       - name: Terraform Apply (Spin Up Stack)
