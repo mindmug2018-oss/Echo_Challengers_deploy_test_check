@@ -452,7 +452,7 @@ resource "aws_instance" "mgmt" {
     volume_size = 20    # ← increase from default 8GB to 20GB
     volume_type = "gp3"
   }
-  
+
   # Tailscale 자동 설치 및 설정 (Subnet Router)
   user_data = <<-EOF
     #!/bin/bash
@@ -716,7 +716,8 @@ resource "terraform_data" "ansible_run" {
       ANSIBLE_SSH_PIPELINING=1 ansible-playbook \
         -i inventory.yml \
         -e @../ansible/group_vars/all.yml \
-        -e slack_webhook_monitoring=$SLACK_WEBHOOK_MONITORING \
+        -e slack_webhook_monitoring=${var.slack_webhook_monitoring} \
+        -e slack_webhook_recovery=${var.slack_webhook_recovery} \
         $([ -f ../ansible/group_vars/secrets.yml ] && echo "-e @../ansible/group_vars/secrets.yml" || echo "-e db_password=$DB_PASSWORD_SECRET") \
         ../ansible/site.yml
     EOT

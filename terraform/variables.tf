@@ -76,3 +76,17 @@ variable "tailscale_api_key" {
   type        = string
   sensitive   = true
 }
+
+variable "slack_webhook_monitoring" {
+  description = "Slack webhook URL for monitoring alerts"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "slack_webhook_recovery" {
+  description = "Slack webhook URL for recovery notifications"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
