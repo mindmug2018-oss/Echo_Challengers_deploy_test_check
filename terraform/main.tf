@@ -659,7 +659,7 @@ resource "terraform_data" "wait_for_instance" {
     aws_instance.web1, 
     aws_instance.web2, 
     aws_instance.db, 
-    aws_instance.nat_ec2,      # ← add this
+    aws_instance.nat_ec2,     
     local_file.ansible_inventory, 
     local_file.ansible_config
   ]
@@ -668,9 +668,9 @@ resource "terraform_data" "wait_for_instance" {
     aws_instance.web1.id, 
     aws_instance.web2.id, 
     aws_instance.db.id,
-    aws_instance.nat_ec2.id    # ← add this
+    aws_instance.nat_ec2.id    
   ]
-  provisioner "local-exec" { command = "sleep 90" }  # ← increase from 60 to 90
+  provisioner "local-exec" { command = "sleep 180" }
 }
 
 resource "terraform_data" "ansible_run" {
@@ -682,9 +682,22 @@ resource "terraform_data" "ansible_run" {
   }
 
   provisioner "local-exec" {
-    # group_vars/*.yml을 명시적으로 -e 옵션으로 주입
-    # 이유: terraform/ 디렉토리에서 실행되어 ../ansible/group_vars/를 자동으로 못 찾음
     command = <<EOT
+      # NAT instance가 실제로 트래픽을 포워딩할 때까지 대기
+      echo "Waiting for NAT instance to be ready..."
+      for i in $(seq 1 20); do
+        if ssh -i ./${var.project_name}-key.pem \
+               -o StrictHostKeyChecking=no \
+               -o ConnectTimeout=5 \
+               ec2-user@${aws_instance.nat_ec2.public_ip} \
+               "curl -s --max-time 5 https://github.com > /dev/null 2>&1"; then
+          echo "NAT is ready!"
+          break
+        fi
+        echo "Attempt $i/20 - NAT not ready yet, waiting 15s..."
+        sleep 15
+      done
+
       ANSIBLE_SSH_PIPELINING=1 ansible-playbook \
         -i inventory.yml \
         -e @../ansible/group_vars/all.yml \
