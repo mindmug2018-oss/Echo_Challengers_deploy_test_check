@@ -661,18 +661,21 @@ resource "terraform_data" "wait_for_instance" {
 
 resource "terraform_data" "ansible_run" {
   depends_on = [terraform_data.wait_for_instance]
+  
   triggers_replace = {
     instance_ids = join(",", [aws_instance.mgmt.id, aws_instance.web1.id, aws_instance.web2.id, aws_instance.db.id])
     always_run   = timestamp()
   }
+
   provisioner "local-exec" {
     # group_vars/*.yml을 명시적으로 -e 옵션으로 주입
     # 이유: terraform/ 디렉토리에서 실행되어 ../ansible/group_vars/를 자동으로 못 찾음
     command = <<EOT
-    ANSIBLE_SSH_PIPELINING=1 ansible-playbook \
-      -i inventory.yml \
-      -e @../ansible/group_vars/all.yml \
-      $([ -f ../ansible/group_vars/secrets.yml ] && echo "-e @../ansible/group_vars/secrets.yml" || echo "-e db_password=$DB_PASSWORD_SECRET") \
-      ../ansible/site.yml
-  EOT
+      ANSIBLE_SSH_PIPELINING=1 ansible-playbook \
+        -i inventory.yml \
+        -e @../ansible/group_vars/all.yml \
+        $([ -f ../ansible/group_vars/secrets.yml ] && echo "-e @../ansible/group_vars/secrets.yml" || echo "-e db_password=$DB_PASSWORD_SECRET") \
+        ../ansible/site.yml
+    EOT
+  }
 }
