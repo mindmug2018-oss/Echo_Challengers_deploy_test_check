@@ -2,6 +2,7 @@
 ---
 - name: 1. DB 서버 특화 설정 (PostgreSQL)
   hosts: databases
+  ignore_unreachable: true
   roles:
     - postgresql
     - node_exporter     # DB 메트릭 수집을 위해 필수

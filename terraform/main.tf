@@ -645,6 +645,13 @@ resource "local_file" "ansible_inventory" {
   })
 }
 
+resource "terraform_data" "debug_inventory" {
+  depends_on = [local_file.ansible_inventory]
+  provisioner "local-exec" {
+    command = "cat inventory.yml"
+  }
+}
+
 resource "local_file" "ansible_config" {
   filename = "${path.module}/ansible.cfg"
   content  = <<-EOF
