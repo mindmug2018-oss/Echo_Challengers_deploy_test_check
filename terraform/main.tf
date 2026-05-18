@@ -596,58 +596,41 @@ resource "aws_lb_listener" "http" {
 
 resource "local_file" "ansible_inventory" {
   filename = "${path.module}/inventory.yml"
-  content = yamlencode({
-    all = {
-      vars = {
-        project_name = var.project_name
-        vpc_cidr     = var.vpc_cidr
-        db_name      = "appdb"
-        db_user      = "appuser"
-      }
-      children = {
-        mgmt = {
-          hosts = {
-            "${aws_instance.mgmt.public_ip}" = {
-              ansible_user                 = "ec2-user"
-              ansible_ssh_private_key_file = "./${var.project_name}-key.pem"
-              private_ip                   = "${aws_instance.mgmt.private_ip}"
-            }
-          }
-        }
-        webservers = {
-          hosts = {
-            "${aws_instance.web1.public_ip}" = {
-              ansible_user                 = "ec2-user"
-              ansible_ssh_private_key_file = "./${var.project_name}-key.pem"
-              private_ip                   = "${aws_instance.web1.private_ip}"
-            }
-            "${aws_instance.web2.public_ip}" = {
-              ansible_user                 = "ec2-user"
-              ansible_ssh_private_key_file = "./${var.project_name}-key.pem"
-              private_ip                   = "${aws_instance.web2.private_ip}"
-            }
-          }
-        }
-        # Fixed & Dual-grouped to support 'databases' and standard 'db' checks
-        databases = {
-          hosts = {
-            "${aws_instance.db.private_ip}" = {
-              ansible_user                 = "ec2-user"
-              ansible_ssh_private_key_file = "./${var.project_name}-key.pem"
-              private_ip                   = "${aws_instance.db.private_ip}"
-              # FIX: Use single percent signs here so the proxy command passes correctly to SSH
-              ansible_ssh_common_args      = "-o ProxyCommand=\"ssh -i ./${var.project_name}-key.pem -o StrictHostKeyChecking=no -W %h:%p ec2-user@${aws_instance.mgmt.public_ip}\""
-            }
-          }
-        }
-        db = {
-          hosts = {
-            "${aws_instance.db.private_ip}" = {}
-          }
-        }
-      }
-    }
-  })
+  content = <<-YAML
+all:
+  vars:
+    project_name: ${var.project_name}
+    vpc_cidr: ${var.vpc_cidr}
+    db_name: appdb
+    db_user: appuser
+  children:
+    mgmt:
+      hosts:
+        ${aws_instance.mgmt.public_ip}:
+          ansible_user: ec2-user
+          ansible_ssh_private_key_file: ./${var.project_name}-key.pem
+          private_ip: ${aws_instance.mgmt.private_ip}
+    webservers:
+      hosts:
+        ${aws_instance.web1.public_ip}:
+          ansible_user: ec2-user
+          ansible_ssh_private_key_file: ./${var.project_name}-key.pem
+          private_ip: ${aws_instance.web1.private_ip}
+        ${aws_instance.web2.public_ip}:
+          ansible_user: ec2-user
+          ansible_ssh_private_key_file: ./${var.project_name}-key.pem
+          private_ip: ${aws_instance.web2.private_ip}
+    databases:
+      hosts:
+        ${aws_instance.db.private_ip}:
+          ansible_user: ec2-user
+          ansible_ssh_private_key_file: ./${var.project_name}-key.pem
+          private_ip: ${aws_instance.db.private_ip}
+          ansible_ssh_common_args: "-o ProxyCommand='ssh -i ./${var.project_name}-key.pem -o StrictHostKeyChecking=no -W %h:%p ec2-user@${aws_instance.mgmt.public_ip}'"
+    db:
+      hosts:
+        ${aws_instance.db.private_ip}: {}
+YAML
 }
 
 resource "terraform_data" "debug_inventory" {

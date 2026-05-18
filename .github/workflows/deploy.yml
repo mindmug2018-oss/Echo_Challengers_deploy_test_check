@@ -109,30 +109,25 @@ jobs:
           MGMT_IP="${{ steps.grafana_auth.outputs.mgmt_ip }}"
           API_TOKEN="${{ steps.grafana_auth.outputs.token }}"
 
-          # Get dashboard UID dynamically
+          # Debug - see what dashboards exist
+          echo "Searching for dashboards..."
           DASHBOARD_RESPONSE=$(curl -s \
             -H "Authorization: Bearer $API_TOKEN" \
             "http://${MGMT_IP}:3000/api/search?type=dash-db")
+          echo "Dashboard response: $DASHBOARD_RESPONSE"
+          
           DASHBOARD_UID=$(echo $DASHBOARD_RESPONSE | grep -oP '"uid":"\K[^"]+' | head -1)
-
-          # Create a snapshot of the dashboard
-          SNAPSHOT_RESPONSE=$(curl -s -X POST \
-            -H "Authorization: Bearer $API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"dashboard\": $(curl -s -H \"Authorization: Bearer $API_TOKEN\" http://${MGMT_IP}:3000/api/dashboards/uid/${DASHBOARD_UID} | grep -oP '\"dashboard\":\K.*(?=,\"meta\")')}" \
-            "http://${MGMT_IP}:3000/api/snapshots")
-
-          SNAPSHOT_URL=$(echo $SNAPSHOT_RESPONSE | grep -oP '"url":"\K[^"]+')
-
-          # Post snapshot link to Slack
-          curl -s -X POST \
-            -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"channel\": \"${{ secrets.SLACK_CHANNEL_ID }}\",
-              \"text\": \"📊 *CI/CD Automation Monitoring:* Chaos spike captured!\nGrafana Snapshot: ${SNAPSHOT_URL}\"
-            }" \
-            https://slack.com/api/chat.postMessage
+          echo "Dashboard UID: $DASHBOARD_UID"
+          
+          if [ -z "$DASHBOARD_UID" ]; then
+            echo "No dashboards found - posting simple Slack notification instead"
+            curl -s -X POST \
+              -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"channel\": \"${{ secrets.SLACK_CHANNEL_ID }}\", \"text\": \"📊 *CI/CD Automation Monitoring:* Deploy succeeded! Grafana: http://${MGMT_IP}:3000\"}" \
+              https://slack.com/api/chat.postMessage
+            exit 0
+          fi
 
       # Step 8: Safe automated cleanup
       - name: Automated Cloud Teardown
