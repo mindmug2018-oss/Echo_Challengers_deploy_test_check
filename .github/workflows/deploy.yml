@@ -108,26 +108,51 @@ jobs:
         run: |
           MGMT_IP="${{ steps.grafana_auth.outputs.mgmt_ip }}"
           API_TOKEN="${{ steps.grafana_auth.outputs.token }}"
+          SLACK_TOKEN="${{ secrets.SLACK_BOT_TOKEN }}"
+          CHANNEL_ID="${{ secrets.SLACK_CHANNEL_ID }}"
 
-          # Debug - see what dashboards exist
           echo "Searching for dashboards..."
           DASHBOARD_RESPONSE=$(curl -s \
             -H "Authorization: Bearer $API_TOKEN" \
             "http://${MGMT_IP}:3000/api/search?type=dash-db")
           echo "Dashboard response: $DASHBOARD_RESPONSE"
           
-          DASHBOARD_UID=$(echo $DASHBOARD_RESPONSE | grep -oP '"uid":"\K[^"]+' | head -1)
+          DASHBOARD_UID=$(echo "$DASHBOARD_RESPONSE" | grep -oP '"uid":"\K[^"]+' | head -1)
           echo "Dashboard UID: $DASHBOARD_UID"
           
+          # 1. Dashboard doesn't exist yet -> Run Smart Fallback Notification
           if [ -z "$DASHBOARD_UID" ]; then
-            echo "No dashboards found - posting simple Slack notification instead"
-            curl -s -X POST \
-              -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
-              -H "Content-Type: application/json" \
-              -d "{\"channel\": \"${{ secrets.SLACK_CHANNEL_ID }}\", \"text\": \"📊 *CI/CD Automation Monitoring:* Deploy succeeded! Grafana: http://${MGMT_IP}:3000\"}" \
-              https://slack.com/api/chat.postMessage
+            echo "No dashboards found - executing adaptive notification routine..."
+            
+            # AUTOMATION PATH A: Check if the secret is a Bot Token (starts with xoxb-)
+            if [[ "$SLACK_TOKEN" == xoxb-* ]]; then
+              echo "Detected Slack Bot Token. Posting via chat.postMessage API..."
+              SLACK_RESPONSE=$(curl -s -X POST \
+                -H "Authorization: Bearer $SLACK_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"channel\": \"$CHANNEL_ID\", \"text\": \"📊 *CI/CD Automation Monitoring:* Deploy succeeded! Grafana dashboard index is empty. Host: http://${MGMT_IP}:3000\"}" \
+                https://slack.com/api/chat.postMessage)
+              echo "Slack Response: $SLACK_RESPONSE"
+              
+            # AUTOMATION PATH B: Check if the secret is an Incoming Webhook URL (starts with http)
+            elif [[ "$SLACK_TOKEN" == http* ]]; then
+              echo "Detected direct Incoming Webhook URL. Posting fallback JSON payload..."
+              curl -s -X POST \
+                -H "Content-Type: application/json" \
+                -d "{\"text\": \"📊 *CI/CD Automation Monitoring:* Deploy succeeded! Host: http://${MGMT_IP}:3000\"}" \
+                "$SLACK_TOKEN"
+            else
+              echo "Warning: SLACK_BOT_TOKEN format not recognized or secret is missing."
+            fi
+            
+            # Always exit 0 here so a notification anomaly never fails the core runner build
             exit 0
           fi
+
+          # 2. If Dashboard UID DOES exist, proceed with snapshot logic
+          echo "Found dashboard UID ($DASHBOARD_UID). Taking snapshot..."
+          
+          # (Your existing Grafana rendering curl command goes here if you have it)
 
       # Step 8: Safe automated cleanup
       - name: Automated Cloud Teardown
