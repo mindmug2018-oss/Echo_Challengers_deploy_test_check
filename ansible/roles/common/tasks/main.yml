@@ -7,6 +7,18 @@
     line: "nameserver 8.8.8.8"
     insertbefore: BOF
 
+- name: Wait for internet connectivity via NAT instance
+  ansible.builtin.get_url:
+    url: https://github.com
+    dest: /tmp/internet_check
+    timeout: 5
+  register: concessions
+  until: concessions is success
+  retries: 15
+  delay: 10
+  # Only run this on the private DB host that actually depends on the NAT routing
+  when: inventory_hostname in groups['db']
+
 - name: "1. 관리용 유저(user1) 계정 생성"
   user:
     name: user1

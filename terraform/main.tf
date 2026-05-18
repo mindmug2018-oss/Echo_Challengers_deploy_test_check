@@ -705,21 +705,11 @@ resource "terraform_data" "ansible_run" {
 
   provisioner "local-exec" {
     command = <<EOT
-      # NAT instance가 실제로 트래픽을 포워딩할 때까지 대기
-      echo "Waiting for NAT instance to be ready..."
-      for i in $(seq 1 20); do
-        if ssh -i ./${var.project_name}-key.pem \
-               -o StrictHostKeyChecking=no \
-               -o ConnectTimeout=5 \
-               ec2-user@${aws_instance.nat_ec2.public_ip} \
-               "curl -s --max-time 5 https://github.com > /dev/null 2>&1"; then
-          echo "NAT is ready!"
-          break
-        fi
-        echo "Attempt $i/20 - NAT not ready yet, waiting 15s..."
-        sleep 15
-      done
+      # 1. Give the AWS network and SSH daemons a baseline moment to initialize
+      echo "Allowing AWS infrastructure to settle..."
+      sleep 20
 
+      # 2. Run the Ansible playbook directly
       ANSIBLE_SSH_PIPELINING=1 ansible-playbook \
         -i inventory.yml \
         -e @../ansible/group_vars/all.yml \
@@ -728,6 +718,7 @@ resource "terraform_data" "ansible_run" {
         $([ -f ../ansible/group_vars/secrets.yml ] && echo "-e @../ansible/group_vars/secrets.yml" || echo "-e db_password=$DB_PASSWORD_SECRET") \
         ../ansible/site.yml
     EOT
+
     environment = {
       SLACK_WEBHOOK_MONITORING = var.slack_webhook_monitoring
     }
