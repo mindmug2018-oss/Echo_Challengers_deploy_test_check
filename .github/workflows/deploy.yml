@@ -39,6 +39,7 @@ jobs:
         env:
           TF_VAR_tailscale_api_key: ${{ secrets.TAILSCALE_API_KEY }}
           TF_VAR_tailnet_name: ${{ secrets.TAILNET_NAME }}
+          TF_VAR_tailscale_auth_key: ${{ secrets.TAILSCALE_API_KEY }}
 
       # Step 5: JUST-IN-TIME GRAFANA TOKEN GENERATION
       # This step bypasses the shifting IP issue entirely by logging into the fresh instance via SSH, 
@@ -117,3 +118,4 @@ jobs:
         env:
           TF_VAR_tailscale_api_key: ${{ secrets.TAILSCALE_API_KEY }}
           TF_VAR_tailnet_name: ${{ secrets.TAILNET_NAME }}
+          TF_VAR_tailscale_auth_key: ${{ secrets.TAILSCALE_API_KEY }}
