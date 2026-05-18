@@ -29,6 +29,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.14.0"
+          
 
       # Step 4: Spin up live stack (Triggers EC2 builds and your Ansible playbooks)
       - name: Terraform Apply (Spin Up Stack)

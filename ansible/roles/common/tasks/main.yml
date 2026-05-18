@@ -1,5 +1,12 @@
 # ~ /project1-aws/ansible/roles/common/tasks/main.yml
 ---
+- name: Ensure public DNS is temporarily appended to resolv.conf
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/resolv.conf
+    line: "nameserver 8.8.8.8"
+    insertbefore: BOF
+
 - name: "1. 관리용 유저(user1) 계정 생성"
   user:
     name: user1
