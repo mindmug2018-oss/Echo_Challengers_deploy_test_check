@@ -29,6 +29,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.14.0"
+          terraform_wrapper: false
           
 
       # Step 4: Spin up live stack (Triggers EC2 builds and your Ansible playbooks)
@@ -41,6 +42,7 @@ jobs:
           TF_VAR_tailscale_api_key: ${{ secrets.TAILSCALE_API_KEY }}
           TF_VAR_tailnet_name: ${{ secrets.TAILNET_NAME }}
           TF_VAR_tailscale_auth_key: ${{ secrets.TAILSCALE_API_KEY }}
+          TF_VAR_slack_webhook_monitoring: ${{ secrets.SLACK_WEBHOOK_URL }}
           DB_PASSWORD_SECRET: ${{ secrets.DB_PASSWORD }}
           ANSIBLE_STDOUT_CALLBACK: default
 
@@ -60,18 +62,22 @@ jobs:
           # 2. Run remote commands to create a temporary Grafana service account and token
           # We use a loop check to ensure the grafana-server service is fully active before running the CLI
           ssh -i $KEY_PATH -o StrictHostKeyChecking=no ec2-user@$MGMT_IP << 'EOF'
-            until systemctl is-active --quiet grafana-server; do
-              echo "Waiting for Grafana service to launch..."
-              sleep 5
-            done
-            
-            # Delete old test token if it somehow exists, create a service account, and mint an admin token
-            grafana-cli admin service-account delete github-ci-sa || true
-            grafana-cli admin service-account create github-ci-sa --role Admin > sa_output.txt
-            SA_ID=$(grep -oP 'id:\s+\K\d+' sa_output.txt)
-            
-            grafana-cli admin service-account token create github-token --service-account-id $SA_ID > token_output.txt
-            grep -oP 'key:\s+\K\S+' token_output.txt > raw_token.txt
+          until systemctl is-active --quiet grafana-server; do
+            echo "Waiting for Grafana service to launch..."
+            sleep 5
+          done
+
+          SA_RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" \
+            -u admin:admin \
+            -d '{"name":"github-ci-sa","role":"Admin"}' \
+            http://localhost:3000/api/serviceaccounts)
+          SA_ID=$(echo $SA_RESPONSE | grep -oP '"id":\K\d+')
+
+          TOKEN_RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" \
+            -u admin:admin \
+            -d '{"name":"github-token"}' \
+            http://localhost:3000/api/serviceaccounts/$SA_ID/tokens)
+          echo $TOKEN_RESPONSE | grep -oP '"key":"\K[^"]+' > raw_token.txt
           EOF
           
           # 3. Pull the generated token back into the GitHub Actions cloud environment safely
@@ -93,25 +99,28 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # Step 7: Capture the Image Snapshot using the Dynamic Token & Post to Slack
       - name: Render Grafana Dashboard & Upload Image to Slack
         run: |
           MGMT_IP="${{ steps.grafana_auth.outputs.mgmt_ip }}"
           API_TOKEN="${{ steps.grafana_auth.outputs.token }}"
-          
-          echo "Downloading PNG graph image snapshot directly from Grafana UI API..."
-          # Note: Replace 'your-dashboard-uid' with your team's custom dashboard uid string
+
+          # Dynamically fetch dashboard UID by name
+          DASHBOARD_RESPONSE=$(curl -s \
+            -H "Authorization: Bearer $API_TOKEN" \
+            "http://${MGMT_IP}:3000/api/search?type=dash-db")
+          DASHBOARD_UID=$(echo $DASHBOARD_RESPONSE | grep -oP '"uid":"\K[^"]+' | head -1)
+
+          echo "Found dashboard UID: $DASHBOARD_UID"
+
           curl -s -L -o chaos_spike.png \
             -H "Authorization: Bearer $API_TOKEN" \
-            "http://${MGMT_IP}:3000/render/d-solo/your-dashboard-uid/system-metrics?panelId=1&width=1000&height=500"
-          
-          echo "Pushing screenshot image to your Slack workspace history..."
-          # Calls Slack's files API to attach the actual binary asset to your project channel
+            "http://${MGMT_IP}:3000/render/d-solo/${DASHBOARD_UID}/system-metrics?panelId=1&width=1000&height=500"
+
           curl -F file=@chaos_spike.png \
-               -F "initial_comment=📊 *CI/CD Automation Monitoring:* Verified Grafana metric wall spike following fault injection on web1 server!" \
-               -F channels=${{ secrets.SLACK_CHANNEL_ID }} \
-               -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
-               https://slack.com/api/files.upload
+              -F "initial_comment=📊 *CI/CD Automation Monitoring:* Verified Grafana metric wall spike following fault injection on web1 server!" \
+              -F channels=${{ secrets.SLACK_CHANNEL_ID }} \
+              -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+              https://slack.com/api/files.upload
 
       # Step 8: Safe automated cleanup
       - name: Automated Cloud Teardown

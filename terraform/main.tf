@@ -674,6 +674,7 @@ resource "terraform_data" "ansible_run" {
       ANSIBLE_SSH_PIPELINING=1 ansible-playbook \
         -i inventory.yml \
         -e @../ansible/group_vars/all.yml \
+        -e slack_webhook_monitoring=$SLACK_WEBHOOK_MONITORING \
         $([ -f ../ansible/group_vars/secrets.yml ] && echo "-e @../ansible/group_vars/secrets.yml" || echo "-e db_password=$DB_PASSWORD_SECRET") \
         ../ansible/site.yml
     EOT
